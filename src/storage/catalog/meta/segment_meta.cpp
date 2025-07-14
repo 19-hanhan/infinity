@@ -236,13 +236,18 @@ Status SegmentMeta::LoadNextBlockID() {
 // }
 
 Status SegmentMeta::LoadFirstDeleteTS() {
+    auto start = GetNowTime();
+    auto t0 = GetNowTime();
     String first_delete_ts_key = GetSegmentTag("first_delete_ts");
     String first_delete_ts_str;
+    t0 = GetNowTime();
     Status status = kv_instance_.Get(first_delete_ts_key, first_delete_ts_str);
+    WriteStatus(t0, "DB::SegmentMeta::LoadFirstDeleteTS::Get");
     if (!status.ok()) {
         return status;
     }
     first_delete_ts_ = std::stoull(first_delete_ts_str);
+    WriteStatus(start, "DB::SegmentMeta::LoadFirstDeleteTS");
     return Status::OK();
 }
 

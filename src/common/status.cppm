@@ -14,6 +14,8 @@
 
 module;
 
+#include <sstream>
+
 export module status;
 
 import stl;
@@ -21,6 +23,18 @@ import third_party;
 
 // If new error codes are added, it also needs to be added to python/infinity/errors.py.
 namespace infinity {
+
+export Map<String, Pair<Atomic<int>, Atomic<double>>> benchmark_status;
+
+export std::chrono::time_point<std::chrono::steady_clock> GetNowTime() {
+    return std::chrono::high_resolution_clock::now();
+}
+
+export void WriteStatus(std::chrono::time_point<std::chrono::steady_clock> t0, std::string value) {
+    auto t1 = std::chrono::high_resolution_clock::now();
+    ++benchmark_status[value].first;
+    benchmark_status[value].second += std::chrono::duration<double>(t1 - t0).count();
+}
 
 export enum class ErrorCode : long {
 

@@ -423,13 +423,16 @@ Status TableMeeta::UninitSet(UsageFlag usage_flag) {
 }
 
 Status TableMeeta::GetTableInfo(TableInfo &table_info) {
+    auto t0 = GetNowTime();
     Status status;
 
     table_info.table_full_dir_ =
         MakeShared<String>(fmt::format("{}/db_{}/tbl_{}", InfinityContext::instance().config()->DataDir(), db_id_str_, table_id_str_));
 
     SharedPtr<Vector<SharedPtr<ColumnDef>>> column_defs;
+    t0 = GetNowTime();
     std::tie(column_defs, status) = this->GetColumnDefs();
+    WriteStatus(t0, "QueryContext::kLogicalPlan::BindSelect::FROM::BuildBaseTable::GetTableInfo::GetColumnDefs");
     if (!status.ok()) {
         return status;
     }
@@ -443,7 +446,9 @@ Status TableMeeta::GetTableInfo(TableInfo &table_info) {
     table_info.table_id_ = table_id_str_;
 
     Vector<SegmentID> *segment_ids_ptr = nullptr;
+    t0 = GetNowTime();
     std::tie(segment_ids_ptr, status) = GetSegmentIDs1();
+    WriteStatus(t0, "QueryContext::kLogicalPlan::BindSelect::FROM::BuildBaseTable::GetTableInfo::GetSegmentIDs1");
     if (!status.ok()) {
         return status;
     }
@@ -597,22 +602,32 @@ Status TableMeeta::LoadComment() {
 }
 
 Status TableMeeta::LoadColumnDefs() {
+    auto start = GetNowTime();
+    auto t0 = GetNowTime();
     Vector<SharedPtr<ColumnDef>> column_defs;
 
     String table_column_prefix = KeyEncode::TableColumnPrefix(db_id_str_, table_id_str_);
+
+    t0 = GetNowTime();
     auto iter2 = kv_instance_.GetIterator();
     iter2->Seek(table_column_prefix);
+    WriteStatus(t0, "DB::TableMeeta::LoadColumnDefs::Iterator");
     while (iter2->Valid() && iter2->Key().starts_with(table_column_prefix)) {
         String column_key = iter2->Key().ToString();
         String column_value = iter2->Value().ToString();
         [[maybe_unused]] String column_name = column_key.substr(column_key.find_last_of('|') + 1);
+        t0 = GetNowTime();
         auto column_def = ColumnDef::FromJson(column_value);
+        WriteStatus(t0, "DB::TableMeeta::LoadColumnDefs::FromJson");
         column_defs.emplace_back(column_def);
+        t0 = GetNowTime();
         iter2->Next();
+        WriteStatus(t0, "DB::TableMeeta::LoadColumnDefs::Iterator");
     }
     std::sort(column_defs.begin(), column_defs.end(), [](const SharedPtr<ColumnDef> &a, const SharedPtr<ColumnDef> &b) { return a->id_ < b->id_; });
     column_defs_ = std::move(column_defs);
 
+    WriteStatus(start, "DB::TableMeeta::LoadColumnDefs");
     return Status::OK();
 }
 
@@ -634,21 +649,30 @@ Status TableMeeta::LoadSegmentIDs1() {
 }
 
 Status TableMeeta::LoadIndexIDs() {
+    auto start = GetNowTime();
+    auto t0 = GetNowTime();
     Vector<String> index_id_strs;
     Vector<String> index_names;
     String index_prefix = KeyEncode::CatalogTableIndexPrefix(db_id_str_, table_id_str_);
+
+    t0 = GetNowTime();
     auto iter = kv_instance_.GetIterator();
     iter->Seek(index_prefix);
+    WriteStatus(t0, "DB::TableMeeta::LoadIndexIDs::Iterator");
     while (iter->Valid() && iter->Key().starts_with(index_prefix)) {
         String column_key = iter->Key().ToString();
         size_t start = index_prefix.size();
         size_t end = column_key.find('|', start);
         index_names.emplace_back(column_key.substr(start, end - start));
         index_id_strs.emplace_back(iter->Value().ToString());
+        t0 = GetNowTime();
         iter->Next();
+        WriteStatus(t0, "DB::TableMeeta::LoadIndexIDs::Iterator");
     }
     index_id_strs_ = std::move(index_id_strs);
     index_names_ = std::move(index_names);
+
+    WriteStatus(start, "DB::TableMeeta::LoadIndexIDs");
     return Status::OK();
 }
 
@@ -721,6 +745,7 @@ Status TableMeeta::DelUnsealedSegmentID() {
 }
 
 Tuple<ColumnID, Status> TableMeeta::GetColumnIDByColumnName(const String &column_name) {
+    auto t0 = GetNowTime();
     String column_key = KeyEncode::TableColumnKey(db_id_str_, table_id_str_, column_name);
     String column_value_str;
     Status status = kv_instance_.Get(column_key, column_value_str);
@@ -729,6 +754,7 @@ Tuple<ColumnID, Status> TableMeeta::GetColumnIDByColumnName(const String &column
         return {INVALID_COLUMN_ID, status};
     }
     auto column_def = ColumnDef::FromJson(nlohmann::json::parse(column_value_str));
+    WriteStatus(t0, "DB::TableMeeta::GetColumnIDByColumnName");
     return {column_def->id_, Status::OK()};
 }
 
@@ -769,7 +795,6 @@ Status TableMeeta::CheckSegments(const Vector<SegmentID> &segment_ids) {
 
 Tuple<SharedPtr<Vector<SharedPtr<ColumnDef>>>, Status> TableMeeta::GetColumnDefs() {
     std::unique_lock<std::mutex> lock(mtx_);
-
     if (!column_defs_) {
         auto status = LoadColumnDefs();
         if (!status.ok()) {

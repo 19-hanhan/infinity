@@ -1456,12 +1456,17 @@ Status NewTxn::GetTableMeta(const String &db_name,
                             Optional<DBMeeta> &db_meta,
                             Optional<TableMeeta> &table_meta,
                             String *table_key_ptr) {
+    auto t0 = GetNowTime();
     Status status;
+    t0 = GetNowTime();
     status = this->GetDBMeta(db_name, db_meta);
+    WriteStatus(t0, "QueryContext::kLogicalPlan::BindSelect::FROM::BuildBaseTable::GetTableMeta::GetDBMeta");
     if (!status.ok()) {
         return status;
     }
+    t0 = GetNowTime();
     status = GetTableMeta(table_name, *db_meta, table_meta, table_key_ptr);
+    WriteStatus(t0, "QueryContext::kLogicalPlan::BindSelect::FROM::BuildBaseTable::GetTableMeta::GetTableMeta");
     if (!status.ok()) {
         return status;
     }

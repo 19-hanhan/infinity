@@ -381,6 +381,8 @@ SizeT PhysicalKnnScan::GetColumnID() const {
 }
 
 void PhysicalKnnScan::PlanWithIndex(QueryContext *query_context) { // TODO: return base entry vector
+    auto start = GetNowTime();
+    auto t0 = GetNowTime();
     InitBlockParallelOption();                                     // PlanWithIndex() will be called in physical planner
 
     Status status;
@@ -459,7 +461,9 @@ void PhysicalKnnScan::PlanWithIndex(QueryContext *query_context) { // TODO: retu
         // Fill the segment with index
         if (table_index_meta_) {
             Vector<SegmentID> *segment_ids_ptr = nullptr;
+            t0 = GetNowTime();
             std::tie(segment_ids_ptr, status) = table_index_meta_->GetSegmentIndexIDs1();
+            WriteStatus(t0, "QueryContext::kPhysicalPlan::PlanWithIndex::GetSegmentIndexIDs1");
             if (!status.ok()) {
                 RecoverableError(status);
             }
@@ -483,6 +487,7 @@ void PhysicalKnnScan::PlanWithIndex(QueryContext *query_context) { // TODO: retu
     index_entries_size_ = segment_index_metas_->size();
     LOG_TRACE(fmt::format("KnnScan: brute force task: {}, index task: {}", block_column_entries_size_, index_entries_size_));
 
+    WriteStatus(start, "QueryContext::kPhysicalPlan::PlanWithIndex");
     return;
 }
 

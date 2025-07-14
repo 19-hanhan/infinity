@@ -39,6 +39,8 @@ import function_expr;
 import statement_common;
 import internal_types;
 
+import status;
+
 using namespace infinity;
 
 template <typename Function>
@@ -185,7 +187,9 @@ int main(int argc, char *argv[]) {
         }
     }
     float elapsed_s_sum = 0;
+    Map<String, Pair<Atomic<int>, Atomic<double>>> avg_status;
     for (size_t times = 0; times < total_times + 2; ++times) {
+        benchmark_status.clear();
         std::cout << "--- Start to run search benchmark: " << std::endl;
         std::vector<std::vector<uint64_t>> query_results(query_count);
         for (auto &v : query_results) {
@@ -244,6 +248,10 @@ int main(int argc, char *argv[]) {
             auto elapsed_s = elapsed_ns / (1'000'000'000.0);
             results.push_back(fmt::format("Total cost : {} s", elapsed_s));
             elapsed_s_sum += elapsed_s;
+            for (const auto &[key, value] : benchmark_status) {
+                avg_status[key].first += value.first;
+                avg_status[key].second += value.second * 1000;
+            }
         }
         {
             size_t correct_1 = 0, correct_10 = 0, correct_100 = 0;
@@ -276,6 +284,9 @@ int main(int argc, char *argv[]) {
     }
     float elapsed_s_avg = elapsed_s_sum / total_times;
     std::cout << "Average cost : " << elapsed_s_avg << " s" << std::endl;
+    for (const auto &[key, value] : avg_status) {
+        fmt::print("{:<100} : {:>8.2f} times / {:>10.6f} ms\n", key, 1.0 * value.first / total_times, value.second / total_times);
+    }
 
     Infinity::LocalUnInit();
 }

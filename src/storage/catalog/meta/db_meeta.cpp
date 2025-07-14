@@ -82,9 +82,13 @@ Status DBMeeta::UninitSet(UsageFlag usage_flag) {
 }
 
 Status DBMeeta::GetTableID(const String &table_name, String &table_key, String &table_id_str) {
+    auto start = GetNowTime();
+    auto t0 = GetNowTime();
     String table_key_prefix = KeyEncode::CatalogTablePrefix(db_id_str_, table_name);
+    t0 = GetNowTime();
     auto iter2 = kv_instance_.GetIterator();
     iter2->Seek(table_key_prefix);
+    WriteStatus(t0, "DB::kv_utility::GetTableID::Iterator");
     SizeT found_count = 0;
 
     Vector<String> error_table_keys;
@@ -95,7 +99,9 @@ Status DBMeeta::GetTableID(const String &table_name, String &table_key, String &
         }
         table_key = iter2->Key().ToString();
         table_id_str = iter2->Value().ToString();
+        t0 = GetNowTime();
         iter2->Next();
+        WriteStatus(t0, "DB::kv_utility::GetTableID::Iterator");
         ++found_count;
     }
 
@@ -114,6 +120,7 @@ Status DBMeeta::GetTableID(const String &table_name, String &table_key, String &
         UnrecoverableError(fmt::format("Found multiple table keys: {}", error_table_keys_str));
     }
 
+    WriteStatus(start, "DB::kv_utility::GetTableID");
     return Status::OK();
 }
 
@@ -199,9 +206,7 @@ Status DBMeeta::LoadComment() {
 Status DBMeeta::LoadTableIDs() {
     table_id_strs_ = Vector<String>();
     table_names_ = Vector<String>();
-
     String db_table_prefix = KeyEncode::CatalogDbTablePrefix(db_id_str_);
-
     auto iter2 = kv_instance_.GetIterator();
     iter2->Seek(db_table_prefix);
     while (iter2->Valid() && iter2->Key().starts_with(db_table_prefix)) {
@@ -213,7 +218,6 @@ Status DBMeeta::LoadTableIDs() {
         table_id_strs_->emplace_back(table_id_str);
         iter2->Next();
     }
-
     return Status::OK();
 }
 

@@ -94,6 +94,8 @@ import new_txn;
 namespace infinity {
 
 SharedPtr<LogicalNode> BoundSelectStatement::BuildPlan(QueryContext *query_context) {
+    auto start = GetNowTime();
+    auto t0 = GetNowTime();
     const SharedPtr<BindContext> &bind_context = this->bind_context_;
     if (search_expr_.get() == nullptr) {
         SharedPtr<LogicalNode> root = BuildFrom(table_ref_ptr_, query_context, bind_context);
@@ -200,9 +202,10 @@ SharedPtr<LogicalNode> BoundSelectStatement::BuildPlan(QueryContext *query_conte
 
         NewTxn *new_txn_ptr = query_context->GetNewTxn();
 
+        t0 = GetNowTime();
         SharedPtr<CommonQueryFilter> default_common_query_filter;
         default_common_query_filter = MakeShared<CommonQueryFilter>(default_filter_expr, base_table_ref, new_txn_ptr);
-
+        WriteStatus(t0, "QueryContext::kLogicalPlan::BuildPlan::CommonQueryFilter");
         Vector<SharedPtr<LogicalNode>> match_knn_nodes;
         match_knn_nodes.reserve(num_children);
         for (auto &match_expr : search_expr_->match_exprs_) {
@@ -481,6 +484,7 @@ SharedPtr<LogicalNode> BoundSelectStatement::BuildPlan(QueryContext *query_conte
         project->set_left_node(root);
         root = std::move(project);
 
+        WriteStatus(start, "QueryContext::kLogicalPlan::BuildPlan");
         return root;
     }
 }

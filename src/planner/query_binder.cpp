@@ -85,6 +85,8 @@ import kv_store;
 namespace infinity {
 
 UniquePtr<BoundSelectStatement> QueryBinder::BindSelect(const SelectStatement &statement) {
+    auto start = GetNowTime();
+    auto t0 = GetNowTime();
 
     UniquePtr<BoundSelectStatement> bound_select_statement = BoundSelectStatement::Make(bind_context_ptr_);
 
@@ -131,6 +133,7 @@ UniquePtr<BoundSelectStatement> QueryBinder::BindSelect(const SelectStatement &s
     // 2. FROM clause (BaseTable, Join and Subquery)
     // 3. ON
     // 4. JOIN
+    t0 = GetNowTime();
     if (statement.table_ref_ != nullptr) {
         // Build table reference
         bound_select_statement->table_ref_ptr_ = BuildFromClause(query_context_ptr_, statement.table_ref_);
@@ -138,10 +141,12 @@ UniquePtr<BoundSelectStatement> QueryBinder::BindSelect(const SelectStatement &s
         // No table reference, just evaluate the expr of the select list.
         bound_select_statement->table_ref_ptr_ = BuildDummyTable(query_context_ptr_);
     }
+    WriteStatus(t0, "QueryContext::kLogicalPlan::BindSelect::FROM");
 
     // 5. SELECT list (aliases)
     // Unfold the star expression in the select list.
     // Star expression will be unfolded and bound as column expressions.
+    t0 = GetNowTime();
     UnfoldStarExpression(query_context_ptr_, *statement.select_list_, bind_context_ptr_->select_expression_);
 
     SizeT select_column_count = bind_context_ptr_->select_expression_.size();
@@ -186,8 +191,10 @@ UniquePtr<BoundSelectStatement> QueryBinder::BindSelect(const SelectStatement &s
     }
 
     SharedPtr<BindAliasProxy> bind_alias_proxy = MakeShared<BindAliasProxy>();
+    WriteStatus(t0, "QueryContext::kLogicalPlan::BindSelect::SELECT_LIST");
 
     // 6.1 SEARCH
+    t0 = GetNowTime();
     if (statement.search_expr_ != nullptr) {
         bind_context_ptr_->BoundSearch(statement.search_expr_);
 
@@ -195,6 +202,7 @@ UniquePtr<BoundSelectStatement> QueryBinder::BindSelect(const SelectStatement &s
         SharedPtr<BaseExpression> search_expr = where_binder->Bind(*statement.search_expr_, this->bind_context_ptr_.get(), 0, true);
         bound_select_statement->search_expr_ = static_pointer_cast<SearchExpression>(search_expr);
     }
+    WriteStatus(t0, "QueryContext::kLogicalPlan::BindSelect::SEARCH");
 
     // 6.2 WHERE
     if (statement.where_expr_) {
@@ -223,9 +231,11 @@ UniquePtr<BoundSelectStatement> QueryBinder::BindSelect(const SelectStatement &s
     //    }
 
     // 11. SELECT (not flatten subquery)
+    t0 = GetNowTime();
     BuildSelectList(query_context_ptr_, bound_select_statement);
     bound_select_statement->aggregate_expressions_ = bind_context_ptr_->aggregate_exprs_;
     bound_select_statement->total_hits_count_flag_ = statement.total_hits_count_flag_;
+    WriteStatus(t0, "QueryContext::kLogicalPlan::BindSelect::SELECT");
 
     // 12. highlight list
     if (statement.highlight_list_ != nullptr) {
@@ -270,6 +280,7 @@ UniquePtr<BoundSelectStatement> QueryBinder::BindSelect(const SelectStatement &s
     bound_select_statement->result_index_ = bind_context_ptr_->result_index_;
     bound_select_statement->knn_index_ = bind_context_ptr_->knn_table_index_;
 
+    WriteStatus(start, "QueryContext::kLogicalPlan::BindSelect");
     return bound_select_statement;
 }
 
@@ -425,6 +436,8 @@ SharedPtr<TableRef> QueryBinder::BuildCTE(QueryContext *, const String &name) {
 }
 
 SharedPtr<BaseTableRef> QueryBinder::BuildBaseTable(QueryContext *query_context, const TableReference *from_table, bool update) {
+    auto start = GetNowTime();
+    auto t0 = GetNowTime();
     String db_name;
     if (from_table->db_name_.empty()) {
         db_name = query_context->schema_name();
@@ -438,7 +451,9 @@ SharedPtr<BaseTableRef> QueryBinder::BuildBaseTable(QueryContext *query_context,
     NewTxn *new_txn = query_context->GetNewTxn();
     Optional<DBMeeta> db_meta;
     Optional<TableMeeta> tmp_table_meta;
+    t0 = GetNowTime();
     status = new_txn->GetTableMeta(db_name, table_name, db_meta, tmp_table_meta);
+    WriteStatus(t0, "QueryContext::kLogicalPlan::BindSelect::FROM::BuildBaseTable::GetTableMeta");
     if (!status.ok()) {
         RecoverableError(status);
     }
@@ -448,7 +463,9 @@ SharedPtr<BaseTableRef> QueryBinder::BuildBaseTable(QueryContext *query_context,
                                              tmp_table_meta->begin_ts(),
                                              tmp_table_meta->commit_ts());
     table_info = MakeShared<TableInfo>();
+    t0 = GetNowTime();
     status = table_meta->GetTableInfo(*table_info);
+    WriteStatus(t0, "QueryContext::kLogicalPlan::BindSelect::FROM::BuildBaseTable::GetTableInfo");
     if (!status.ok()) {
         RecoverableError(status);
     }
@@ -489,6 +506,7 @@ SharedPtr<BaseTableRef> QueryBinder::BuildBaseTable(QueryContext *query_context,
     // Insert the table in the binding context
     this->bind_context_ptr_->AddTableBinding(alias, table_index, table_info, std::move(types_ptr), std::move(names_ptr), std::move(block_index));
 
+    WriteStatus(start, "QueryContext::kLogicalPlan::BindSelect::FROM::BuildBaseTable");
     return table_ref;
 }
 

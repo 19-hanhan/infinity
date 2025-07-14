@@ -140,6 +140,8 @@ QueryResult QueryContext::QueryStatement(const BaseStatement *base_statement) {
 }
 
 QueryResult QueryContext::QueryStatementInternal(const BaseStatement *base_statement) {
+    auto start = GetNowTime();
+    auto t0 = start;
     QueryResult query_result;
 
     if (base_statement->Type() == StatementType::kAdmin) {
@@ -232,6 +234,7 @@ QueryResult QueryContext::QueryStatementInternal(const BaseStatement *base_state
 
         // Build unoptimized logical plan for each SQL base_statement.
         StartProfile(QueryPhase::kLogicalPlan);
+        t0 = GetNowTime();
         SharedPtr<BindContext> bind_context;
         auto status = logical_planner_->Build(base_statement, bind_context);
         // FIXME
@@ -241,24 +244,30 @@ QueryResult QueryContext::QueryStatementInternal(const BaseStatement *base_state
 
         current_max_node_id_ = bind_context->GetNewLogicalNodeId();
         logical_plans = logical_planner_->LogicalPlans();
+        WriteStatus(t0, "QueryContext::kLogicalPlan");
         StopProfile(QueryPhase::kLogicalPlan);
         //        LOG_WARN(fmt::format("Before optimizer cost: {}", profiler.ElapsedToString()));
         // Apply optimized rule to the logical plan
         StartProfile(QueryPhase::kOptimizer);
+        t0 = GetNowTime();
         for (auto &logical_plan : logical_plans) {
             optimizer_->optimize(logical_plan, base_statement->type_);
         }
+        WriteStatus(t0, "QueryContext::kOptimizer");
         StopProfile(QueryPhase::kOptimizer);
 
         // Build physical plan
         StartProfile(QueryPhase::kPhysicalPlan);
+        t0 = GetNowTime();
         for (auto &logical_plan : logical_plans) {
             auto physical_plan = physical_planner_->BuildPhysicalOperator(logical_plan);
             physical_plans.push_back(std::move(physical_plan));
         }
+        WriteStatus(t0, "QueryContext::kPhysicalPlan");
         StopProfile(QueryPhase::kPhysicalPlan);
         //        LOG_WARN(fmt::format("Before pipeline cost: {}", profiler.ElapsedToString()));
         StartProfile(QueryPhase::kPipelineBuild);
+        t0 = GetNowTime();
         // Fragment Builder, only for test now.
         {
             Vector<PhysicalOperator *> physical_plan_ptrs;
@@ -267,21 +276,28 @@ QueryResult QueryContext::QueryStatementInternal(const BaseStatement *base_state
             }
             plan_fragment = fragment_builder_->BuildFragment(physical_plan_ptrs);
         }
+        WriteStatus(t0, "QueryContext::kPipelineBuild");
         StopProfile(QueryPhase::kPipelineBuild);
 
         StartProfile(QueryPhase::kTaskBuild);
+        t0 = GetNowTime();
         notifier = MakeUnique<Notifier>();
         FragmentContext::BuildTask(this, nullptr, plan_fragment.get(), notifier.get());
+        WriteStatus(t0, "QueryContext::kTaskBuild");
         StopProfile(QueryPhase::kTaskBuild);
         //        LOG_WARN(fmt::format("Before execution cost: {}", profiler.ElapsedToString()));
         StartProfile(QueryPhase::kExecution);
+        t0 = GetNowTime();
         scheduler_->Schedule(plan_fragment.get(), base_statement);
         query_result.result_table_ = plan_fragment->GetResult();
         query_result.root_operator_type_ = logical_plans.back()->operator_type();
+        WriteStatus(t0, "QueryContext::kExecution");
         StopProfile(QueryPhase::kExecution);
         //        LOG_WARN(fmt::format("Before commit cost: {}", profiler.ElapsedToString()));
         StartProfile(QueryPhase::kCommit);
+        t0 = GetNowTime();
         this->CommitTxn();
+        WriteStatus(t0, "QueryContext::kCommit");
         StopProfile(QueryPhase::kCommit);
 
     } catch (RecoverableException &e) {
@@ -335,6 +351,7 @@ QueryResult QueryContext::QueryStatementInternal(const BaseStatement *base_state
     }
     //    profiler.End();
     //    LOG_WARN(fmt::format("Query cost: {}", profiler.ElapsedToString()));
+    WriteStatus(start, "QueryContext");
     return query_result;
 }
 

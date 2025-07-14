@@ -137,7 +137,9 @@ CommonQueryFilter::CommonQueryFilter(SharedPtr<BaseExpression> original_filter, 
     }
 
     bool has_delete = false;
+    auto t0 = GetNowTime();
     Status status = new_txn->CheckTableIfDelete(*base_table_ref_->block_index_->table_meta_, has_delete);
+    WriteStatus(t0, "QueryContext::kLogicalPlan::BuildPlan::CommonQueryFilter::CheckTableIfDelete");
     if (!status.ok()) {
         UnrecoverableError(fmt::format("Check table has delete error: {}", status.message()));
     }

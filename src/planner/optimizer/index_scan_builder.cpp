@@ -38,6 +38,8 @@ import filter_expression_push_down;
 import base_table_ref;
 import lazy_load;
 
+import status;
+
 namespace infinity {
 
 // Different from LogicalNodeVisitor, this visitor accepts shared_ptr<LogicalNode> as input.
@@ -134,7 +136,9 @@ private:
 
 void IndexScanBuilder::ApplyToPlan(QueryContext *query_context_ptr, SharedPtr<LogicalNode> &logical_plan) {
     BuildIndexScan visitor(query_context_ptr);
+    auto t0 = GetNowTime();
     visitor.VisitNode(logical_plan);
+    WriteStatus(t0, "QueryContext::kOptimizer::IndexScanBuilder");
 }
 
 } // namespace infinity

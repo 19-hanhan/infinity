@@ -28,9 +28,13 @@ namespace infinity {
 CatalogMeta::CatalogMeta(KVInstance &kv_instance) : kv_instance_(kv_instance) {}
 
 Status CatalogMeta::GetDBID(const String &db_name, String &db_key, String &db_id) {
+    auto start = GetNowTime();
+    auto t0 = GetNowTime();
     String db_key_prefix = KeyEncode::CatalogDbPrefix(db_name);
+    t0 = GetNowTime();
     auto iter2 = kv_instance_.GetIterator();
     iter2->Seek(db_key_prefix);
+    WriteStatus(t0, "DB::CatalogMeta::GetDBID::Iterator");
     SizeT found_count = 0;
 
     Vector<String> error_db_keys;
@@ -41,7 +45,9 @@ Status CatalogMeta::GetDBID(const String &db_name, String &db_key, String &db_id
         }
         db_key = iter2->Key().ToString();
         db_id = iter2->Value().ToString();
+        t0 = GetNowTime();
         iter2->Next();
+        WriteStatus(t0, "DB::CatalogMeta::GetDBID::Iterator");
         ++found_count;
     }
 
@@ -60,6 +66,7 @@ Status CatalogMeta::GetDBID(const String &db_name, String &db_key, String &db_id
         UnrecoverableError(fmt::format("Found multiple database keys: {}", error_db_keys_str));
     }
 
+    WriteStatus(start, "DB::CatalogMeta::GetDBID");
     return Status::OK();
 }
 

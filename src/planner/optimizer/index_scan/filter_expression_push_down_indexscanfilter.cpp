@@ -92,6 +92,7 @@ struct ExpressionIndexScanInfo {
     HashMap<ColumnID, SharedPtr<TableIndexMeeta>> new_candidate_column_index_map_;
 
     inline void NewInitColumnIndexEntries(TableInfo *table_info, NewTxn *new_txn, BaseTableRef *base_table_ref) {
+        auto t0 = GetNowTime();
         Status status;
         if (!base_table_ref->block_index_->table_meta_) {
             base_table_ref->block_index_->table_meta_ =
@@ -101,7 +102,9 @@ struct ExpressionIndexScanInfo {
         auto& table_index_meta_map = base_table_ref->block_index_->table_index_meta_map_;
 
         Vector<String> *index_id_strs_ptr = nullptr;
+        t0 = GetNowTime();
         status = table_meta_->GetIndexIDs(index_id_strs_ptr);
+        WriteStatus(t0, "QueryContext::kOptimizer::IndexScanBuilder::GetIndexIDs");
         if (!status.ok()) {
             RecoverableError(status);
         }
@@ -117,7 +120,9 @@ struct ExpressionIndexScanInfo {
             SharedPtr<TableIndexMeeta>& it = table_index_meta_map[i];
 
             SharedPtr<IndexBase> index_base;
+            t0 = GetNowTime();
             std::tie(index_base, status) = it->GetIndexBase();
+            WriteStatus(t0, "QueryContext::kOptimizer::IndexScanBuilder::GetIndexBase");
             if (!status.ok()) {
                 RecoverableError(status);
             }
