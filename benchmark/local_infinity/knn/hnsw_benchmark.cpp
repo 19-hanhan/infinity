@@ -28,16 +28,49 @@ enum class ModeType : i8 {
 };
 
 enum class BenchmarkType : i8 {
-    SIFT,
-    GIST,
+    AUDIO,
+    ENRON,
+    GIST1M,
+    GLOVE1M,
+    IMAGENET,
+    MILLIONSONG,
+    MNIST,
+    MSMARCO1M,
+    NOTRE,
+    SIFT1M,
+    TINY5M,
+    TREVI,
+    WORD2VEC,
 };
 
 std::string BenchmarkTypeToString(BenchmarkType benchmark_type) {
     switch (benchmark_type) {
-        case BenchmarkType::SIFT:
-            return "sift";
-        case BenchmarkType::GIST:
-            return "gist";
+        case BenchmarkType::AUDIO:
+            return "audio";
+        case BenchmarkType::ENRON:
+            return "enron";
+        case BenchmarkType::GIST1M:
+            return "gist1M";
+        case BenchmarkType::GLOVE1M:
+            return "glove1M";
+        case BenchmarkType::IMAGENET:
+            return "imagenet";
+        case BenchmarkType::MILLIONSONG:
+            return "millionsong";
+        case BenchmarkType::MNIST:
+            return "mnist";
+        case BenchmarkType::MSMARCO1M:
+            return "msmarco1M";
+        case BenchmarkType::NOTRE:
+            return "notre";
+        case BenchmarkType::SIFT1M:
+            return "sift1M";
+        case BenchmarkType::TINY5M:
+            return "tiny5M";
+        case BenchmarkType::TREVI:
+            return "trevi";
+        case BenchmarkType::WORD2VEC:
+            return "word2vec";
     }
 }
 
@@ -69,13 +102,13 @@ std::string BuildTypeToString(BuildType build_type) {
         case BuildType::LSGBuild:
             return "lsg";
         case BuildType::LSGLVQBuild:
-            return "lvq_lsg";
+            return "lvqlsg";
         case BuildType::LSGCompressToLVQ:
-            return "clvq_lsg";
+            return "clvqlsg";
         case BuildType::LSGRabitqBuild:
-            return "rabitq_lsg";
+            return "rabitqlsg";
         case BuildType::LSGCompressToRabitq:
-            return "crabitq_lsg";
+            return "crabitqlsg";
     }
 }
 
@@ -92,7 +125,21 @@ public:
                                                     {"query", ModeType::QUERY},
                                                     {"clvq", ModeType::CompressLVQ},
                                                     {"crabitq", ModeType::CompressRabitq}};
-        std::map<std::string, BenchmarkType> benchmark_type_map = {{"sift", BenchmarkType::SIFT}, {"gist", BenchmarkType::GIST}};
+        std::map<std::string, BenchmarkType> benchmark_type_map = {
+            {"audio", BenchmarkType::AUDIO},
+            {"enron", BenchmarkType::ENRON},
+            {"gist1M", BenchmarkType::GIST1M},
+            {"glove1M", BenchmarkType::GLOVE1M},
+            {"imagenet", BenchmarkType::IMAGENET},
+            {"millionsong", BenchmarkType::MILLIONSONG},
+            {"mnist", BenchmarkType::MNIST},
+            {"msmarco1M", BenchmarkType::MSMARCO1M},
+            {"notre", BenchmarkType::NOTRE},
+            {"sift1M", BenchmarkType::SIFT1M},
+            {"tiny5M", BenchmarkType::TINY5M},
+            {"trevi", BenchmarkType::TREVI},
+            {"word2vec", BenchmarkType::WORD2VEC},
+        };
         std::map<std::string, BuildType> build_type_map = {
             {"plain", BuildType::PLAIN},
             {"lvq", BuildType::LVQ},
@@ -100,10 +147,10 @@ public:
             {"clvq", BuildType::CompressToLVQ},
             {"crabitq", BuildType::CompressToRabitq},
             {"lsg", BuildType::LSGBuild},
-            {"lvq_lsg", BuildType::LSGLVQBuild},
-            {"clvq_lsg", BuildType::LSGCompressToLVQ},
-            {"rabitq_lsg", BuildType::LSGRabitqBuild},
-            {"crabitq_lsg", BuildType::LSGCompressToRabitq},
+            {"lvqlsg", BuildType::LSGLVQBuild},
+            {"clvqlsg", BuildType::LSGCompressToLVQ},
+            {"rabitqlsg", BuildType::LSGRabitqBuild},
+            {"crabitqlsg", BuildType::LSGCompressToRabitq},
         };
 
         app_.add_option("--mode", mode_type_, "mode")->required()->transform(CLI::CheckedTransformer(mode_map, CLI::ignore_case));
@@ -135,16 +182,82 @@ public:
     void ParseInner() {
         std::string index_name = IndexName(benchmark_type_, build_type_, M_, ef_construction_);
         switch (benchmark_type_) {
-            case BenchmarkType::SIFT: {
-                base_path_ = "test/data/benchmark/sift_1m/sift_base.fvecs";
-                query_path_ = "test/data/benchmark/sift_1m/sift_query.fvecs";
-                groundtruth_path_ = "test/data/benchmark/sift_1m/sift_groundtruth.ivecs";
+            case BenchmarkType::AUDIO: {
+                base_path_ = "test/data/benchmark/audio/audio_base.fvecs";
+                query_path_ = "test/data/benchmark/audio/audio_query.fvecs";
+                groundtruth_path_ = "test/data/benchmark/audio/audio_groundtruth.ivecs";
                 break;
             }
-            case BenchmarkType::GIST: {
-                base_path_ = "./test/data/benchmark/gist_1m/gist_base.fvecs";
-                query_path_ = "./test/data/benchmark/gist_1m/gist_query.fvecs";
-                groundtruth_path_ = "./test/data/benchmark/gist_1m/gist_groundtruth.ivecs";
+            case BenchmarkType::ENRON: {
+                base_path_ = "test/data/benchmark/enron/enron_base.fvecs";
+                query_path_ = "test/data/benchmark/enron/enron_query.fvecs";
+                groundtruth_path_ = "test/data/benchmark/enron/enron_groundtruth.ivecs";
+                break;
+            }
+            case BenchmarkType::GIST1M: {
+                base_path_ = "test/data/benchmark/gist1M/gist1M_base.fvecs";
+                query_path_ = "test/data/benchmark/gist1M/gist1M_query.fvecs";
+                groundtruth_path_ = "test/data/benchmark/gist1M/gist1M_groundtruth.ivecs";
+                break;
+            }
+            case BenchmarkType::GLOVE1M: {
+                base_path_ = "test/data/benchmark/glove1M/glove1M_base.fvecs";
+                query_path_ = "test/data/benchmark/glove1M/glove1M_query.fvecs";
+                groundtruth_path_ = "test/data/benchmark/glove1M/glove1M_groundtruth.ivecs";
+                break;
+            }
+            case BenchmarkType::IMAGENET: {
+                base_path_ = "test/data/benchmark/imageNet/imageNet_base.fvecs";
+                query_path_ = "test/data/benchmark/imageNet/imageNet_query.fvecs";
+                groundtruth_path_ = "test/data/benchmark/imageNet/imageNet_groundtruth.ivecs";
+                break;
+            }
+            case BenchmarkType::MILLIONSONG: {
+                base_path_ = "test/data/benchmark/millionSong/millionSong_base.fvecs";
+                query_path_ = "test/data/benchmark/millionSong/millionSong_query.fvecs";
+                groundtruth_path_ = "test/data/benchmark/millionSong/millionSong_groundtruth.ivecs";
+                break;
+            }
+            case BenchmarkType::MNIST: {
+                base_path_ = "test/data/benchmark/mnist/mnist_base.fvecs";
+                query_path_ = "test/data/benchmark/mnist/mnist_query.fvecs";
+                groundtruth_path_ = "test/data/benchmark/mnist/mnist_groundtruth.ivecs";
+                break;
+            }
+            case BenchmarkType::MSMARCO1M: {
+                base_path_ = "test/data/benchmark/msmarco1M/msmarco1M_base.fvecs";
+                query_path_ = "test/data/benchmark/msmarco1M/msmarco1M_query.fvecs";
+                groundtruth_path_ = "test/data/benchmark/msmarco1M/msmarco1M_groundtruth.ivecs";
+                break;
+            }
+            case BenchmarkType::NOTRE: {
+                base_path_ = "test/data/benchmark/notre/notre_base.fvecs";
+                query_path_ = "test/data/benchmark/notre/notre_query.fvecs";
+                groundtruth_path_ = "test/data/benchmark/notre/notre_groundtruth.ivecs";
+                break;
+            }
+            case BenchmarkType::SIFT1M: {
+                base_path_ = "test/data/benchmark/sift1M/sift1M_base.fvecs";
+                query_path_ = "test/data/benchmark/sift1M/sift1M_query.fvecs";
+                groundtruth_path_ = "test/data/benchmark/sift1M/sift1M_groundtruth.ivecs";
+                break;
+            }
+            case BenchmarkType::TINY5M: {
+                base_path_ = "test/data/benchmark/tiny5M/tiny5M_base.fvecs";
+                query_path_ = "test/data/benchmark/tiny5M/tiny5M_query.fvecs";
+                groundtruth_path_ = "test/data/benchmark/tiny5M/tiny5M_groundtruth.ivecs";
+                break;
+            }
+            case BenchmarkType::TREVI: {
+                base_path_ = "test/data/benchmark/trevi/trevi_base.fvecs";
+                query_path_ = "test/data/benchmark/trevi/trevi_query.fvecs";
+                groundtruth_path_ = "test/data/benchmark/trevi/trevi_groundtruth.ivecs";
+                break;
+            }
+            case BenchmarkType::WORD2VEC: {
+                base_path_ = "test/data/benchmark/word2vec/word2vec_base.fvecs";
+                query_path_ = "test/data/benchmark/word2vec/word2vec_query.fvecs";
+                groundtruth_path_ = "test/data/benchmark/word2vec/word2vec_groundtruth.ivecs";
                 break;
             }
         }
@@ -381,7 +494,8 @@ void Query(const BenchmarkOption &option) {
     };
     if (option.ef_ == 0) {
         std::cout << "test_n = " << option.test_n_ << std::endl;
-        for (size_t ef = 100; ef <= 1000; ef += 100) {
+        std::vector<size_t> efs = {100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000};
+        for (size_t ef : efs) {
             KnnSearchOption search_option{.ef_ = ef};
             float QPS = 0;
             for (size_t i = 0; i < option.test_n_; ++i) {
@@ -390,6 +504,9 @@ void Query(const BenchmarkOption &option) {
             QPS /= option.test_n_;
             float recall = cal_recall();
             std::cout << fmt::format("efsearch={},QPS={:.2f},Recall@{}={:.4f}", ef, QPS, query_topk, recall) << std::endl;
+            if (recall == 1.0) {
+                break;
+            }
         }
     } else {
         for (size_t i = 0; i < option.test_n_; ++i) {
@@ -555,25 +672,3 @@ int main(int argc, char *argv[]) {
     }
     return 0;
 }
-
-// int main() {
-//     BenchmarkOption option;
-//     option.mode_type_ = ModeType::BUILD;
-//     option.benchmark_type_ = BenchmarkType::GIST;
-//     for (size_t ef_construction = 200; ef_construction <= 1000; ef_construction += 200) {
-//         option.ef_construction_ = ef_construction;
-//         {
-//             option.build_type_ = BuildType::PLAIN;
-//             option.ParseInner();
-//             std::cout << fmt::format("ef_construction: {}, build_type: {}, ", ef_construction, BuildTypeToString(option.build_type_)) << std::endl;
-//             Build<Hnsw, Hnsw>(option);
-//             Compress<Hnsw, HnswLVQ>(option);
-//         }
-//         {
-//             option.build_type_ = BuildType::LVQ;
-//             option.ParseInner();
-//             std::cout << fmt::format("ef_construction: {}, build_type: {}, ", ef_construction, BuildTypeToString(option.build_type_)) << std::endl;
-//             Build<HnswLVQ, HnswLVQ>(option);
-//         }
-//     }
-// }
