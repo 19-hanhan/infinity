@@ -170,13 +170,14 @@ public:
     using DistanceType = typename MetaType::DistanceType;
 
 public:
-    RabitqVecStoreMetaBase() : origin_dim_(0), dim_(0), compress_data_size_(0), compress_query_size_(0) {}
+    RabitqVecStoreMetaBase() : rotation_(false), origin_dim_(0), dim_(0), compress_data_size_(0), compress_query_size_(0) {}
     RabitqVecStoreMetaBase(This &&other)
-        : origin_dim_(std::exchange(other.origin_dim_, 0)), rom_(std::move(other.rom_)), centroid_(std::move(other.centroid_)),
-          dim_(std::exchange(other.dim_, 0)), compress_data_size_(std::exchange(other.compress_data_size_, 0)),
+        : rotation_(std::exchange(other.rotation_, false)), origin_dim_(std::exchange(other.origin_dim_, 0)), rom_(std::move(other.rom_)),
+          centroid_(std::move(other.centroid_)), dim_(std::exchange(other.dim_, 0)), compress_data_size_(std::exchange(other.compress_data_size_, 0)),
           compress_query_size_(std::exchange(other.compress_query_size_, 0)) {}
     RabitqVecStoreMetaBase &operator=(This &&other) {
         if (this != &other) {
+            rotation_ = std::exchange(other.rotation_, false);
             origin_dim_ = std::exchange(other.origin_dim_, 0);
             rom_ = std::move(other.rom_);
             centroid_ = std::move(other.centroid_);
@@ -188,8 +189,11 @@ public:
     }
 
     void Save(LocalFileHandle &file_handle) const {
+        file_handle.Append(&rotation_, sizeof(rotation_));
         file_handle.Append(&origin_dim_, sizeof(origin_dim_));
-        file_handle.Append(rom_.get(), sizeof(DataType) * dim_ * dim_);
+        if (rotation_) {
+            file_handle.Append(rom_.get(), sizeof(DataType) * dim_ * dim_);
+        }
         file_handle.Append(centroid_.get(), sizeof(DataType) * dim_);
     }
 
@@ -205,9 +209,8 @@ public:
 
         // 1.Init
         memset(dest, 0, compress_data_size_);
-        std::vector<DataType> align_src(dim_, 0);
-        std::copy(src, src + origin_dim_, align_src.begin());
-        std::vector<DataType> rot_src(dim_, 0);
+        auto align_src = std::make_unique<DataType[]>(dim_);
+        std::copy(src, src + origin_dim_, align_src.get());
         auto bin_src = std::make_unique<AlignType[]>(bin_code_size); // 1 dim -> 1 bit
 
         // 2.Compute raw vector Norm for IP or Cos distance
@@ -217,7 +220,13 @@ public:
         }
 
         // 3.Rotation align_src by rom
-        matrixA_multiply_matrixB_output_to_C(align_src.data(), rom_.get(), 1, dim_, dim_, rot_src.data());
+        std::unique_ptr<DataType[]> rot_src;
+        if (rotation_) {
+            rot_src = std::make_unique<DataType[]>(dim_);
+            matrixA_multiply_matrixB_output_to_C(align_src.get(), rom_.get(), 1, dim_, dim_, rot_src.get());
+        } else {
+            rot_src = std::move(align_src);
+        }
 
         // 4.normalize rot_src
         DataType norm = 0;
@@ -258,9 +267,8 @@ public:
     void CompressToQuery(const DataType *src, QueryData *dest) const {
         // 1.Init
         memset(dest, 0, compress_query_size_);
-        std::vector<DataType> align_src(dim_, 0);
-        std::copy(src, src + origin_dim_, align_src.begin());
-        std::vector<DataType> rot_src(dim_, 0);
+        auto align_src = std::make_unique<DataType[]>(dim_);
+        std::copy(src, src + origin_dim_, align_src.get());
         auto compress_src = std::make_unique<CompressType[]>(dim_);
 
         // 2.Compute raw vector Norm for IP or Cos distance
@@ -270,7 +278,13 @@ public:
         }
 
         // 3.Rotation align_src by rom
-        matrixA_multiply_matrixB_output_to_C(align_src.data(), rom_.get(), 1, dim_, dim_, rot_src.data());
+        std::unique_ptr<DataType[]> rot_src;
+        if (rotation_) {
+            rot_src = std::make_unique<DataType[]>(dim_);
+            matrixA_multiply_matrixB_output_to_C(align_src.get(), rom_.get(), 1, dim_, dim_, rot_src.get());
+        } else {
+            rot_src = std::move(align_src);
+        }
 
         // 4.normalize rot_src
         DataType norm = 0;
@@ -310,20 +324,23 @@ public:
     }
 
     void Dump(std::ostream &os) const {
-        os << fmt::format("[CONST] origin_dim: {}, dim: {}, compress_data_size: {}, compress_query_size: {}",
+        os << fmt::format("[CONST] rotation: {}, origin_dim: {}, dim: {}, compress_data_size: {}, compress_query_size: {}",
+                          rotation_,
                           origin_dim_,
                           dim_,
                           compress_data_size_,
                           compress_query_size_)
            << std::endl;
 
-        os << "rom: " << std::endl;
-        for (size_t i = 0; i < dim_; ++i) {
-            os << "\t";
-            for (size_t j = 0; j < dim_; ++j) {
-                os << rom_[i * dim_ + j] << " ";
+        if (rotation_) {
+            os << "rom: " << std::endl;
+            for (size_t i = 0; i < dim_; ++i) {
+                os << "\t";
+                for (size_t j = 0; j < dim_; ++j) {
+                    os << rom_[i * dim_ + j] << " ";
+                }
+                os << std::endl;
             }
-            os << std::endl;
         }
 
         os << "centroid: ";
@@ -334,13 +351,25 @@ public:
     }
 
 public:
-    size_t GetSizeInBytes() const { return sizeof(origin_dim_) + dim_ * dim_ * sizeof(DataType) + dim_ * sizeof(DataType); }
+    size_t GetSizeInBytes() const {
+        size_t res = sizeof(rotation_)  + sizeof(origin_dim_) + dim_ * sizeof(DataType);
+        if (rotation_) {
+            res += dim_ * dim_ * sizeof(DataType);
+        }
+        return res;
+    }
     size_t GetVecSizeInBytes() const { return compress_data_size_; }
+    size_t rotation() const { return rotation_; }
     size_t origin_dim() const { return origin_dim_; }
     size_t dim() const { return dim_; }
     size_t compress_data_size() const { return compress_data_size_; }
     size_t compress_query_size() const { return compress_query_size_; }
-    const DataType *rom() const { return rom_.get(); }
+    const DataType *rom() const {
+        if (!rotation_) {
+            UnrecoverableError("rom not exist, rotation is disabled");
+        }
+        return rom_.get();
+    }
     const DataType *centroid() const { return centroid_.get(); }
 
 public:
@@ -348,7 +377,7 @@ public:
         DataType inv_sqrt_d_ = 1.0f / std::sqrt(dim_);
 
         // 1.Init
-        std::vector<DataType> rot_src(dim_, 0);
+        auto rot_src = std::make_unique<DataType[]>(dim_);
 
         // 2.Decode to real-valued vector
         for (size_t d = 0; d < dim_; ++d) {
@@ -362,14 +391,19 @@ public:
         }
 
         // 4.Inverse random projection
-        matrixA_multiply_transpose_matrixB_output_to_C(rot_src.data(), rom_.get(), 1, dim_, dim_, dest);
+        if (rotation_) {
+            matrixA_multiply_transpose_matrixB_output_to_C(rot_src.get(), rom_.get(), 1, dim_, dim_, dest);
+        } else {
+            std::copy(rot_src.get(), rot_src.get() + dim_, dest);
+        }
     }
 
     void DecompressCode(const StoreType &src, DataType *dest) const { DecompressCode(src, dest, centroid_.get()); }
 
 protected:
+    bool rotation_;
     size_t origin_dim_;
-    ArrayPtr<DataType, OwnMem> rom_;          // Random orthogonal matrix
+    ArrayPtr<DataType, OwnMem> rom_;      // Random orthogonal matrix
     ArrayPtr<DataType, OwnMem> centroid_; // Rotation centroid of all vector in DataStore
 
     size_t dim_;
@@ -390,38 +424,49 @@ public:
     using CompressType = typename Base::CompressType;
 
 private:
-    RabitqVecStoreMeta(size_t origin_dim) {
+    RabitqVecStoreMeta(size_t origin_dim, bool rotation) {
+        this->rotation_ = rotation;
         this->origin_dim_ = origin_dim;
         size_t dim = AlignUp(origin_dim, MetaType::align_size_);
         this->dim_ = dim;
-        this->rom_ = std::make_unique<DataType[]>(dim * dim);
+        if (rotation) {
+            this->rom_ = std::make_unique<DataType[]>(dim * dim);
+            GenerateRandomOrthogonalMatrix<DataType>(this->rom_.get(), this->dim_);
+        }
         this->centroid_ = std::make_unique<DataType[]>(dim);
-        GenerateRandomOrthogonalMatrix<DataType>(this->rom_.get(), this->dim_);
         this->compress_data_size_ = sizeof(StoreData) + dim / MetaType::align_size_;
         this->compress_query_size_ = sizeof(QueryData) + dim * sizeof(CompressType);
     }
 
 public:
     RabitqVecStoreMeta() = default;
-    static This Make(size_t origin_dim) { return This(origin_dim); }
-    static This Make(size_t origin_dim, bool normalize) { return This(origin_dim); }
+    static This Make(size_t origin_dim) { return This(origin_dim, false); }
+    static This Make(size_t origin_dim, bool normalize) { return This(origin_dim, false); }
+    static This Make(size_t origin_dim, bool normalize, bool rotation) { return This(origin_dim, rotation); }
 
     static This Load(LocalFileHandle &file_handle) {
+        bool rotation;
+        file_handle.Read(&rotation, sizeof(rotation));
         size_t origin_dim;
         file_handle.Read(&origin_dim, sizeof(origin_dim));
-        This meta(origin_dim);
+        This meta(origin_dim, rotation);
         size_t dim = meta.dim_;
-        file_handle.Read(meta.rom_.get(), dim * dim * sizeof(DataType));
+        if (rotation) {
+            file_handle.Read(meta.rom_.get(), dim * dim * sizeof(DataType));
+        }
         file_handle.Read(meta.centroid_.get(), dim * sizeof(DataType));
         return meta;
     }
 
     static This LoadFromPtr(const char *&ptr) {
+        bool rotation = ReadBufAdv<bool>(ptr);
         size_t origin_dim = ReadBufAdv<size_t>(ptr);
-        This meta(origin_dim);
+        This meta(origin_dim, rotation);
         size_t dim = meta.dim_;
-        std::memcpy(meta.rom_.get(), ptr, dim * dim * sizeof(DataType));
-        ptr += dim * dim * sizeof(DataType);
+        if (rotation) {
+            std::memcpy(meta.rom_.get(), ptr, dim * dim * sizeof(DataType));
+            ptr += dim * dim * sizeof(DataType);
+        }
         std::memcpy(meta.centroid_.get(), ptr, dim * sizeof(DataType));
         ptr += dim * sizeof(DataType);
         return meta;
@@ -461,14 +506,20 @@ public:
         }
 
         // Save centroid
-        auto new_rot_centroid = std::make_unique<DataType[]>(dim);
-        matrixA_multiply_matrixB_output_to_C(new_centroid.get(), this->rom_.get(), 1, dim, dim, new_rot_centroid.get());
-        new_rot_centroid = this->centroid_.exchange(std::move(new_rot_centroid));
+        std::unique_ptr<DataType[]> old_centroid;
+        if (this->rotation_) {
+            auto new_rot_centroid = std::make_unique<DataType[]>(dim);
+            matrixA_multiply_matrixB_output_to_C(new_centroid.get(), this->rom_.get(), 1, dim, dim, new_rot_centroid.get());
+            new_rot_centroid = this->centroid_.exchange(std::move(new_rot_centroid));
+            old_centroid = std::move(new_rot_centroid);
+        } else {
+            old_centroid = this->centroid_.exchange(std::move(new_centroid));
+        }
 
         // Update old vector code
         for (auto [inner, size] : inners) {
             for (size_t i = 0; i < size; ++i) {
-                this->DecompressCode(inner->GetVec(i, *this), temp_decompress.get(), new_rot_centroid.get());
+                this->DecompressCode(inner->GetVec(i, *this), temp_decompress.get(), old_centroid.get());
                 inner->SetVec(i, temp_decompress.get(), *this, mem_usage);
             }
         }
@@ -487,7 +538,8 @@ public:
     using CompressType = typename Base::CompressType;
 
 private:
-    RabitqVecStoreMeta(size_t origin_dim, DataType *rom, DataType *rot_centroid) {
+    RabitqVecStoreMeta(size_t origin_dim, DataType *rom, DataType *rot_centroid, bool rotation) {
+        this->rotation_ = rotation;
         this->origin_dim_ = origin_dim;
         this->rom_ = rom;
         this->centroid_ = rot_centroid;
@@ -501,13 +553,17 @@ public:
     RabitqVecStoreMeta() = default;
 
     static This LoadFromPtr(const char *&ptr) {
+        bool rotation = ReadBufAdv<bool>(ptr);
         size_t origin_dim = ReadBufAdv<size_t>(ptr);
         size_t dim = AlignUp(origin_dim, MetaType::align_size_);
-        auto *rom = reinterpret_cast<DataType *>(const_cast<char *>(ptr));
-        ptr += dim * dim * sizeof(DataType);
+        DataType *rom = nullptr;
+        if (rotation) {
+            rom = reinterpret_cast<DataType *>(const_cast<char *>(ptr));
+            ptr += dim * dim * sizeof(DataType);
+        }
         auto *rot_centroid = reinterpret_cast<DataType *>(const_cast<char *>(ptr));
         ptr += dim * sizeof(DataType);
-        return This(origin_dim, rom, rot_centroid);
+        return This(origin_dim, rom, rot_centroid, rotation);
     }
 };
 
