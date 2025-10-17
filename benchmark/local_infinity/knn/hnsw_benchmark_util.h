@@ -44,4 +44,37 @@ std::tuple<size_t, i32, std::unique_ptr<T[]>> DecodeFvecsDataset(const std::file
     return {vec_num, dim, std::move(data)};
 }
 
+
+template <typename DataType>
+std::unique_ptr<DataType[]> DecodeFvecsById(const std::filesystem::path &path, i32 id) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file.is_open()) {
+        UnrecoverableError("Faild to open file");
+    }
+    i32 dim = 0;
+    file.read(reinterpret_cast<char *>(&dim), sizeof(i32));
+
+    size_t vec_size = dim * sizeof(DataType);
+    size_t row_size = sizeof(i32) + vec_size;
+    file.seekg(id * row_size, std::ios::beg);
+    if (!file) {
+        UnrecoverableError("Faild to seek");
+    }
+
+    i32 vec_dim = 0;
+    file.read(reinterpret_cast<char *>(&vec_dim), sizeof(i32));
+    if (vec_dim != dim) {
+        UnrecoverableError("dim not match");
+    }
+
+    auto vec = std::make_unique<DataType[]>(dim);
+    file.read(reinterpret_cast<char *>(vec.get()), vec_size);
+    if (file.gcount() != static_cast<i64>(vec_size)) {
+        UnrecoverableError("Faild to read vec");
+    }
+
+    file.close();
+    return std::move(vec);
+}
+
 } // namespace benchmark

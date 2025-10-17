@@ -432,7 +432,6 @@ void Query(const BenchmarkOption &option) {
 
     auto hnsw = HnswT::Load(*index_file);
 
-    auto [base_num, base_dim, base_data] = benchmark::DecodeFvecsDataset<float>(option.base_path_);
     auto [query_num, query_dim, query_data] = benchmark::DecodeFvecsDataset<float>(option.query_path_);
     auto [gt_num, topk, gt_data] = benchmark::DecodeFvecsDataset<i32>(option.groundtruth_path_);
     size_t query_topk = topk;
@@ -447,8 +446,8 @@ void Query(const BenchmarkOption &option) {
         auto l2_distance = GetSIMD_FUNCTIONS().L2Distance_func_ptr_;
         for (size_t i = 0; i < pairs.size(); ++i) {
             const auto &base_id = pairs[i].second;
-            const auto &base_vec = base_data.get() + base_id * base_dim;
-            pairs[i].first = l2_distance(query_vec, base_vec, base_dim);
+            const auto &base_vec = benchmark::DecodeFvecsById<float>(option.base_path_, base_id);
+            pairs[i].first = l2_distance(query_vec, base_vec.get(), query_dim);
         }
         std::sort(pairs.begin(), pairs.end());
     };
