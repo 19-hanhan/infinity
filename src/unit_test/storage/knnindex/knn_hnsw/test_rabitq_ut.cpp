@@ -112,7 +112,7 @@ TEST_F(RabitqTest, test_simple) {
         meta.Optimize<LabelType>(DenseVectorIter(iter), {}, mem_usage);
         meta.Dump(std::cout);
         const DataType *rom = meta.rom();
-        const DataType *rot_centroid = meta.rot_centroid();
+        const DataType *rot_centroid = meta.centroid();
         auto centroid = std::make_unique<DataType[]>(dim_);
         matrixA_multiply_transpose_matrixB_output_to_C(rot_centroid, rom, 1, meta.dim(), meta.dim(), centroid.get());
         write_rom = std::make_unique<DataType[]>(dim_ * dim_);
@@ -144,7 +144,7 @@ TEST_F(RabitqTest, test_simple) {
 
         RabitqVecStoreMeta meta = RabitqVecStoreMeta::Load(*file_handle);
         const DataType *rom = meta.rom();
-        const DataType *rot_centroid = meta.rot_centroid();
+        const DataType *rot_centroid = meta.centroid();
         auto centroid = std::make_unique<DataType[]>(dim_);
         matrixA_multiply_transpose_matrixB_output_to_C(rot_centroid, rom, 1, meta.dim(), meta.dim(), centroid.get());
         for (int i = 0; i < dim_; ++i) {
@@ -176,7 +176,7 @@ TEST_F(RabitqTest, test_simple) {
 
         RabitqVecStoreMeta meta = RabitqVecStoreMeta::LoadFromPtr(ptr);
         const DataType *rom = meta.rom();
-        const DataType *rot_centroid = meta.rot_centroid();
+        const DataType *rot_centroid = meta.centroid();
         auto centroid = std::make_unique<DataType[]>(dim_);
         matrixA_multiply_transpose_matrixB_output_to_C(rot_centroid, rom, 1, meta.dim(), meta.dim(), centroid.get());
         for (int i = 0; i < dim_; ++i) {
@@ -211,7 +211,7 @@ TEST_F(RabitqTest, test_simple) {
         ASSERT_EQ(inner_size, write_mem);
 
         const DataType *rom = meta.rom();
-        const DataType *rot_centroid = meta.rot_centroid();
+        const DataType *rot_centroid = meta.centroid();
         auto centroid = std::make_unique<DataType[]>(dim_);
         matrixA_multiply_transpose_matrixB_output_to_C(rot_centroid, rom, 1, meta.dim(), meta.dim(), centroid.get());
         for (int d = 0; d < dim_; ++d) {
